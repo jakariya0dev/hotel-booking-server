@@ -31,7 +31,7 @@ async function run() {
 
     // All Rooms Route
     app.get("/api/rooms", async (req, res) => {
-      const rooms = await roomsCollection.find().toArray();
+      const rooms = await roomCollections.find().toArray();
       res.json(rooms);
     });
 
@@ -43,6 +43,7 @@ async function run() {
       res.json(room);
     });
 
+    // Book Room Route
     app.post("/api/book-room", async (req, res) => {
       const data = req.body;
 
@@ -63,7 +64,14 @@ async function run() {
         });
       }
     });
-    
+
+    // My Bookings Route
+    app.get("/api/bookings/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { userEmail: email };
+      const bookings = await bookingCollections.find(query).toArray();
+      res.json(bookings);
+    });
   } finally {
     // await client.close();
   }
