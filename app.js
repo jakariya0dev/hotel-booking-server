@@ -3,6 +3,7 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 require("dotenv").config();
 const PORT = process.env.PORT || 5000;
+const ObjectId = require("mongodb").ObjectId;
 
 const app = express();
 app.use(cors());
@@ -17,24 +18,57 @@ const client = new MongoClient(process.env.MONGODB_URI, {
   },
 });
 
-let db, roomsCollection;
-
 async function run() {
   try {
     await client.connect();
     await client.db(process.env.DB_NAME).command({ ping: 1 });
     console.log("Pinged to your MongoDB!");
+
+    const roomCollections = client.db(process.env.DB_NAME).collection("rooms");
+    const bookingCollections = client
+      .db(process.env.DB_NAME)
+      .collection("bookings");
+
+    // All Rooms Route
+    app.get("/api/rooms", async (req, res) => {
+      const rooms = await roomsCollection.find().toArray();
+      res.json(rooms);
+    });
+
+    // Room Details Route
+    app.get("/api/room/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const room = await roomCollections.findOne(query);
+      res.json(room);
+    });
+
+    app.post("/api/book-room", async (req, res) => {
+      const data = req.body;
+
+      try {
+        const result = await bookingCollections.insertOne(data);
+
+        res.json({
+          success: true,
+          message: "Room Booked Successfully",
+          bookingId: result.insertedId,
+          data,
+        });
+      } catch (err) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to book the room",
+          error: err.message,
+        });
+      }
+    });
+    
   } finally {
     // await client.close();
   }
 }
 run().catch(console.dir);
-
-// // Rooms Routes
-// app.get("/api/rooms", async (req, res) => {
-//   const rooms = await roomsCollection.find().toArray();
-//   res.json(rooms);
-// });
 
 // app.post("/api/rooms", async (req, res) => {
 //   const newRoom = req.body;
