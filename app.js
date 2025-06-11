@@ -25,7 +25,9 @@ async function run() {
     console.log("Pinged to your MongoDB!");
 
     const roomCollections = client.db(process.env.DB_NAME).collection("rooms");
-    const reviewCollections = client.db(process.env.DB_NAME).collection("reviews");
+    const reviewCollections = client
+      .db(process.env.DB_NAME)
+      .collection("reviews");
     const bookingCollections = client
       .db(process.env.DB_NAME)
       .collection("bookings");
@@ -39,9 +41,26 @@ async function run() {
     // Room Details Route
     app.get("/api/room/:id", async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const room = await roomCollections.findOne(query);
-      res.json(room);
+      const result = await roomCollections
+        .aggregate([
+          { $match: { _id: new ObjectId(id) } },
+          {
+            $addFields: {
+              roomId: { $toString: "$_id" },
+            },
+          },
+          {
+            $lookup: {
+              from: "reviews",
+              localField: "roomId",
+              foreignField: "roomId", 
+              as: "reviews",
+            },
+          },
+        ])
+        .toArray();
+
+      res.json(result[0] || {});
     });
 
     // Book Room Route
@@ -68,10 +87,32 @@ async function run() {
 
     // My Bookings Route
     app.get("/api/bookings/:email", async (req, res) => {
-      const email = req.params.email;
-      const query = { userEmail: email };
-      const bookings = await bookingCollections.find(query).toArray();
-      res.json(bookings);
+      try {
+        const bookings = await bookingCollections
+          .aggregate([
+            { $match: { userEmail: req.params.email } },
+            {
+              $addFields: {
+                roomObjectId: { $toObjectId: "$roomId" },
+              },
+            },
+            {
+              $lookup: {
+                from: "rooms",
+                localField: "roomObjectId",
+                foreignField: "_id",
+                as: "roomDetails",
+              },
+            },
+            { $unwind: "$roomDetails" },
+          ])
+          .toArray();
+
+        res.json(bookings);
+      } catch (err) {
+        console.error("Error in /api/bookings/:email", err);
+        res.status(500).json({ message: "Server error" });
+      }
     });
 
     // Delete Booking Route
@@ -105,8 +146,13 @@ async function run() {
     app.post("/api/review", async (req, res) => {
       const review = req.body;
       try {
-        const result = await reviewCollections
-          .insertOne(review);
+        const result = await reviewCollections.insertOne(review);
+        if (result.acknowledged) {
+          await bookingCollections.updateOne(
+            { _id: new ObjectId(review.bookingId) },
+            { $set: { reviewed: true } }
+          );
+        }
         res.status(201).json({
           success: true,
           message: "Review added successfully",
@@ -118,6 +164,18 @@ async function run() {
           message: "Failed to add review",
           error: err.message,
         });
+      }
+    });
+
+    // get all reviews
+    app.get("/api/reviews/:id", async (req, res) => {
+      try {
+        const query = { roomId: new ObjectId(req.params.id) };
+        const reviews = await reviewCollections.find(query).toArray();
+        res.status(200).json(reviews);
+      } catch (err) {
+        console.error("Error fetching reviews:", err);
+        res.status(500).json({ message: "Server error" });
       }
     });
   } finally {
