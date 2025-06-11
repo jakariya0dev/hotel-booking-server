@@ -25,6 +25,7 @@ async function run() {
     console.log("Pinged to your MongoDB!");
 
     const roomCollections = client.db(process.env.DB_NAME).collection("rooms");
+    const reviewCollections = client.db(process.env.DB_NAME).collection("reviews");
     const bookingCollections = client
       .db(process.env.DB_NAME)
       .collection("bookings");
@@ -71,6 +72,53 @@ async function run() {
       const query = { userEmail: email };
       const bookings = await bookingCollections.find(query).toArray();
       res.json(bookings);
+    });
+
+    // Delete Booking Route
+    app.delete("/api/bookings/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await bookingCollections.deleteOne(query);
+
+        if (result.deletedCount === 1) {
+          res.status(200).json({
+            success: true,
+            message: "Booking deleted successfully",
+          });
+        } else {
+          res.status(404).json({
+            success: false,
+            message: "Booking not found",
+          });
+        }
+      } catch (err) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to cancel the booking",
+          error: err.message,
+        });
+      }
+    });
+
+    // add review
+    app.post("/api/review", async (req, res) => {
+      const review = req.body;
+      try {
+        const result = await reviewCollections
+          .insertOne(review);
+        res.status(201).json({
+          success: true,
+          message: "Review added successfully",
+          reviewId: result.insertedId,
+        });
+      } catch (err) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to add review",
+          error: err.message,
+        });
+      }
     });
   } finally {
     // await client.close();
