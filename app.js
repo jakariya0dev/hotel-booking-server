@@ -57,6 +57,14 @@ async function run() {
               as: "reviews",
             },
           },
+          {
+            $lookup: {
+              from: "bookings",
+              localField: "roomId",
+              foreignField: "roomId",
+              as: "bookings",
+            },
+          }
         ])
         .toArray();
 
