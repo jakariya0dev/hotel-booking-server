@@ -175,7 +175,7 @@ async function run() {
       }
     });
 
-    // get all reviews
+    // get all reviews of a room
     app.get("/api/reviews/:id", async (req, res) => {
       try {
         const query = { roomId: new ObjectId(req.params.id) };
@@ -186,6 +186,18 @@ async function run() {
         res.status(500).json({ message: "Server error" });
       }
     });
+
+    // get all reviews
+    app.get("/api/reviews", async (req, res) => {
+      try {
+        const reviews = await reviewCollections.find().sort({"date": -1}).toArray();
+        res.status(200).json({success: true, reviews: reviews});
+      } catch (err) {
+        console.error("Error fetching reviews:", err);
+        res.status(500).json({ success: false, message: "Server error" });
+      }
+    });
+
   } finally {
     // await client.close();
   }
