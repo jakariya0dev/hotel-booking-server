@@ -38,6 +38,37 @@ async function run() {
       res.json(rooms);
     });
 
+// six most rated rooms
+app.get("/api/rooms/top-rated", async (req, res) => {
+  const rooms = await roomCollections
+    .aggregate([
+      {
+        $addFields: {
+          stringId: { $toString: "$_id" },
+        },
+      },
+      {
+        $lookup: {
+          from: "reviews",
+          localField: "stringId",
+          foreignField: "roomId",
+          as: "reviews",
+        },
+      },
+      {
+        $addFields: {
+          averageRating: { $avg: "$reviews.rating" },
+        },
+      },
+      { $sort: { averageRating: -1 } },
+      { $limit: 6 },
+    ])
+    .toArray();
+
+  res.json(rooms);
+});
+
+
     // Room Details Route
     app.get("/api/room/:id", async (req, res) => {
       const id = req.params.id;
@@ -53,7 +84,7 @@ async function run() {
             $lookup: {
               from: "reviews",
               localField: "roomId",
-              foreignField: "roomId", 
+              foreignField: "roomId",
               as: "reviews",
             },
           },
@@ -64,7 +95,7 @@ async function run() {
               foreignField: "roomId",
               as: "bookings",
             },
-          }
+          },
         ])
         .toArray();
 
@@ -112,7 +143,6 @@ async function run() {
                 as: "roomDetails",
               },
             },
-            { $unwind: "$roomDetails" },
           ])
           .toArray();
 
@@ -120,6 +150,52 @@ async function run() {
       } catch (err) {
         console.error("Error in /api/bookings/:email", err);
         res.status(500).json({ message: "Server error" });
+      }
+    });
+
+    // Update Booking Route
+    app.patch("/api/bookings/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedData = req.body;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid booking ID",
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Booking update request received",
+        data: updatedData,
+      });
+
+      try {
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: updatedData,
+        };
+
+        const result = await bookingCollections.updateOne(query, updateDoc);
+
+        if (result.modifiedCount === 1) {
+          res.status(200).json({
+            success: true,
+            message: "Booking updated successfully",
+          });
+        } else {
+          res.status(404).json({
+            success: false,
+            message: "Booking not found",
+          });
+        }
+      } catch (err) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to update the booking",
+          error: err.message,
+        });
       }
     });
 
@@ -190,14 +266,16 @@ async function run() {
     // get all reviews
     app.get("/api/reviews", async (req, res) => {
       try {
-        const reviews = await reviewCollections.find().sort({"date": -1}).toArray();
-        res.status(200).json({success: true, reviews: reviews});
+        const reviews = await reviewCollections
+          .find()
+          .sort({ date: -1 })
+          .toArray();
+        res.status(200).json({ success: true, reviews: reviews });
       } catch (err) {
         console.error("Error fetching reviews:", err);
         res.status(500).json({ success: false, message: "Server error" });
       }
     });
-
   } finally {
     // await client.close();
   }
