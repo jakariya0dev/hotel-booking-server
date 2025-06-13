@@ -38,36 +38,66 @@ async function run() {
       res.json(rooms);
     });
 
-// six most rated rooms
-app.get("/api/rooms/top-rated", async (req, res) => {
-  const rooms = await roomCollections
-    .aggregate([
-      {
-        $addFields: {
-          stringId: { $toString: "$_id" },
-        },
-      },
-      {
-        $lookup: {
-          from: "reviews",
-          localField: "stringId",
-          foreignField: "roomId",
-          as: "reviews",
-        },
-      },
-      {
-        $addFields: {
-          averageRating: { $avg: "$reviews.rating" },
-        },
-      },
-      { $sort: { averageRating: -1 } },
-      { $limit: 6 },
-    ])
-    .toArray();
+    // Get rooms by price range
+    app.get("/api/rooms/price-range", async (req, res) => {
+      const min = parseInt(req.query.minPrice);
+      const max = parseInt(req.query.maxPrice);
 
-  res.json(rooms);
-});
+      if (!min || !max) {
+        return res.status(400).json({
+          success: false,
+          message: "Please provide both minPrice and maxPrice",
+        });
+      }
 
+      try {
+        const result = await roomCollections
+          .find({ price: { $gte: min, $lte: max } })
+          .toArray();
+
+        res.status(200).json({
+          success: true,
+          message: "Rooms fetched successfully",
+          rooms: result,
+        });
+      } catch (err) {
+        res.status(500).json({
+          success: false,
+          message: "Error fetching rooms",
+          error: err.message,
+        });
+      }
+    });
+
+    // six most rated rooms
+    app.get("/api/rooms/top-rated", async (req, res) => {
+      const rooms = await roomCollections
+        .aggregate([
+          {
+            $addFields: {
+              stringId: { $toString: "$_id" },
+            },
+          },
+          {
+            $lookup: {
+              from: "reviews",
+              localField: "stringId",
+              foreignField: "roomId",
+              as: "reviews",
+            },
+          },
+          {
+            $addFields: {
+              averageRating: { $avg: "$reviews.rating" },
+            },
+          },
+          { $sort: { averageRating: -1 } },
+          { $limit: 6 },
+        ])
+        .toArray();
+
+      res.json(rooms);
+    });
 
     // Room Details Route
     app.get("/api/room/:id", async (req, res) => {
