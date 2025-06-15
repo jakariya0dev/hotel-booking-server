@@ -5,9 +5,43 @@ require("dotenv").config();
 const PORT = process.env.PORT || 5000;
 const ObjectId = require("mongodb").ObjectId;
 
+// FIREBASE: admin sdk
+const admin = require("firebase-admin");
+const serviceAccount = require("./firebase-adminsdk.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Middleware: to verify firebase token
+const verifyFirebaseToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res
+      .status(401)
+      .json({ message: "Unauthorized access", error: "No token provided" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    req.user = decodedToken;
+    // console.log("Firebase token verified:", decodedToken);
+
+    next();
+  } catch (error) {
+    console.error("Error verifying Firebase token:", error);
+    return res
+      .status(401)
+      .json({ message: "Unauthorized access", error: "Invalid token" });
+  }
+};
 
 // MongoDB Connection
 const client = new MongoClient(process.env.MONGODB_URI, {
@@ -132,9 +166,17 @@ async function run() {
       res.json(result[0] || {});
     });
 
-    // Book Room Route
-    app.post("/api/book-room", async (req, res) => {
+    // PRIVATE: Book Room Route
+    app.post("/api/book-room", verifyFirebaseToken, async (req, res) => {
       const data = req.body;
+
+      // check user email matches with booking userEmail
+      if (req.user.email !== data.userEmail) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not authorized to book this room",
+        });
+      }
 
       try {
         const result = await bookingCollections.insertOne(data);
@@ -154,8 +196,8 @@ async function run() {
       }
     });
 
-    // My Bookings Route
-    app.get("/api/bookings/:email", async (req, res) => {
+    // PRIVATE: My Bookings Route
+    app.get("/api/bookings/:email", verifyFirebaseToken, async (req, res) => {
       try {
         const bookings = await bookingCollections
           .aggregate([
@@ -183,10 +225,18 @@ async function run() {
       }
     });
 
-    // Update Booking Route
-    app.patch("/api/bookings/:id", async (req, res) => {
+    // PRIVATE: Update Booking Route
+    app.put("/api/bookings/:id", verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       const updatedData = req.body;
+
+      // check user email matches with booking userEmail
+      if (req.user.email !== updatedData.userEmail) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not authorized",
+        });
+      }
 
       if (!ObjectId.isValid(id)) {
         return res.status(400).json({
@@ -195,16 +245,12 @@ async function run() {
         });
       }
 
-      res.status(200).json({
-        success: true,
-        message: "Booking update request received",
-        data: updatedData,
-      });
-
       try {
         const query = { _id: new ObjectId(id) };
         const updateDoc = {
-          $set: updatedData,
+          $set: {
+            bookingDate: updatedData.bookingDate,
+          },
         };
 
         const result = await bookingCollections.updateOne(query, updateDoc);
@@ -229,11 +275,21 @@ async function run() {
       }
     });
 
-    // Delete Booking Route
-    app.delete("/api/bookings/:id", async (req, res) => {
+    // PRIVATE: Delete Booking Route
+    app.delete("/api/bookings/:id", verifyFirebaseToken, async (req, res) => {
       try {
         const id = req.params.id;
         const query = { _id: new ObjectId(id) };
+        const data = req.body;
+
+        // check user email matches with booking userEmail
+        if (req.user.email !== data.userEmail) {
+          return res.status(403).json({
+            success: false,
+            message: "You are not authorized",
+          });
+        }
+
         const result = await bookingCollections.deleteOne(query);
 
         if (result.deletedCount === 1) {
@@ -256,9 +312,18 @@ async function run() {
       }
     });
 
-    // add review
-    app.post("/api/review", async (req, res) => {
+    // PRIVATE: add review
+    app.post("/api/review", verifyFirebaseToken, async (req, res) => {
       const review = req.body;
+
+      // check user email matches with booking userEmail
+      if (req.user.email !== review.userEmail) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not authorized",
+        });
+      }
+
       try {
         const result = await reviewCollections.insertOne(review);
         if (result.acknowledged) {
