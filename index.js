@@ -1,7 +1,7 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
-require("dotenv").config();
 const PORT = process.env.PORT || 5000;
 const ObjectId = require("mongodb").ObjectId;
 
@@ -55,9 +55,9 @@ const client = new MongoClient(process.env.MONGODB_URI, {
 async function run() {
   try {
     // Connect the to the server (optional)
-    await client.connect();
-    await client.db(process.env.DB_NAME).command({ ping: 1 });
-    console.log("Pinged to your MongoDB!");
+    // await client.connect();
+    // await client.db(process.env.DB_NAME).command({ ping: 1 });
+    // console.log("Pinged to your MongoDB!");
 
     // Collections
     const roomCollections = client.db(process.env.DB_NAME).collection("rooms");
@@ -68,9 +68,55 @@ async function run() {
       .db(process.env.DB_NAME)
       .collection("bookings");
 
-    // All Rooms Route
+    // API Routes
+    app.get("/", (req, res) => {
+      res.send({
+        message: "Welcome to the Hotel Booking API",
+        version: "1.0.0",
+        api: [
+          {
+            method: "GET",
+            path: "/api/rooms",
+            description: "Get all rooms",
+          },
+          {
+            method: "GET",
+            path: "/api/rooms/top-rated",
+            description: "Get top rated rooms",
+          },
+          {
+            method: "GET",
+            path: "/api/reviews",
+            description: "Get all reviews",
+          },
+        ],
+      });
+    });
+
+    // All Rooms
     app.get("/api/rooms", async (req, res) => {
-      const rooms = await roomCollections.find().toArray();
+      const rooms = await roomCollections
+        .aggregate([
+          {
+            $addFields: {
+              stringId: { $toString: "$_id" },
+            },
+          },
+          {
+            $lookup: {
+              from: "reviews",
+              localField: "stringId",
+              foreignField: "roomId",
+              as: "reviews",
+            },
+          },
+          {
+            $addFields: {
+              averageRating: { $avg: "$reviews.rating" },
+            },
+          },
+        ])
+        .toArray();
       res.json(rooms);
     });
 
@@ -87,8 +133,33 @@ async function run() {
       }
 
       try {
+
         const result = await roomCollections
-          .find({ price: { $gte: min, $lte: max } })
+          .aggregate([
+            {
+              $match: {
+                price: { $gte: min, $lte: max },
+              },
+            },
+            {
+              $addFields: {
+                stringId: { $toString: "$_id" },
+              },
+            },
+            {
+              $lookup: {
+                from: "reviews",
+                localField: "stringId",
+                foreignField: "roomId",
+                as: "reviews",
+              },
+            },
+            {
+              $addFields: {
+                averageRating: { $avg: "$reviews.rating" },
+              },
+            },
+          ])
           .toArray();
 
         res.status(200).json({
