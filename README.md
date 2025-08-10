@@ -67,7 +67,7 @@ Welcome to **SunsetBay Hotel Booking**, a full-stack hotel reservation web appli
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/jakariya0dev/hotel-booking-client.git
+git clone https://github.com/jakariya0dev/hotel-booking-server.git
 cd hotel-booking-server
 ```
 
