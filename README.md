@@ -4,7 +4,7 @@ Welcome to **SunsetBay Hotel Booking**, a full-stack hotel reservation web appli
 
 🔗 **Live Website**: [https://sunsetbay-hotel.netlify.app](https://sunsetbay-hotel.netlify.app)
 
-🔗 **Live Website**: [https://github.com/jakariya0dev/hotel-booking-client](https://github.com/jakariya0dev/hotel-booking-client)
+🔗 **Client Side Repo**: [https://github.com/jakariya0dev/hotel-booking-client](https://github.com/jakariya0dev/hotel-booking-client)
 
 ---
 
